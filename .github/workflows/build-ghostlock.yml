@@ -6,6 +6,8 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
 
     steps:
       - name: Checkout AB Tools repo
@@ -41,7 +43,7 @@ jobs:
             -o ghostlock
           file ghostlock
           ls -lh ghostlock
-          echo "✅ ghostlock binary built"
+          echo "ghostlock binary built"
 
       - name: Copy to exploits folder
         run: |
@@ -62,5 +64,3 @@ jobs:
           git add app/src/main/assets/exploits/ghostlock
           git diff --staged --quiet || git commit -m "Auto-build: GhostLock binary for non-Pixel devices"
           git push
-        permissions:
-          contents: write
