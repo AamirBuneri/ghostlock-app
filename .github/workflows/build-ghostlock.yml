@@ -1,0 +1,66 @@
+name: Build GhostLock Binary
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout AB Tools repo
+        uses: actions/checkout@v4
+
+      - name: Clone ghostlock-app
+        run: git clone --depth=1 https://github.com/YuKongA/ghostlock-app.git ghostlock-app
+
+      - name: Download ONDK (topjohnwu NDK)
+        run: |
+          ONDK_VERSION="r30.1"
+          url="https://github.com/topjohnwu/ondk/releases/download/${ONDK_VERSION}/ondk-${ONDK_VERSION}-linux.tar.xz"
+          mkdir -p "${{ runner.temp }}/ondk"
+          curl -fL "$url" -o "${{ runner.temp }}/ondk.tar.xz"
+          tar -C "${{ runner.temp }}/ondk" --strip-components=1 -xf "${{ runner.temp }}/ondk.tar.xz"
+          echo "ONDK_HOME=${{ runner.temp }}/ondk" >> $GITHUB_ENV
+          echo "ANDROID_NDK_HOME=${{ runner.temp }}/ondk" >> $GITHUB_ENV
+          echo "NDK_ROOT=${{ runner.temp }}/ondk" >> $GITHUB_ENV
+
+      - name: Build ghostlock binary
+        run: |
+          cd ghostlock-app
+          NDK_CC="$NDK_ROOT/toolchains/llvm/prebuilt/linux-x86_64/bin/aarch64-linux-android35-clang"
+          echo "Using: $NDK_CC"
+          $NDK_CC -O2 -flto -Wall \
+            -Isrc/core -Isrc/kernels \
+            '-DTARGET_CONFIG_H="target.h"' \
+            -fPIE -pie -pthread -flto \
+            src/core/main.c \
+            src/core/offsets_json.c \
+            src/core/util.c \
+            src/core/fops.c \
+            -o ghostlock
+          file ghostlock
+          ls -lh ghostlock
+          echo "✅ ghostlock binary built"
+
+      - name: Copy to exploits folder
+        run: |
+          cp ghostlock-app/ghostlock app/src/main/assets/exploits/ghostlock
+          echo "Copied to exploits folder"
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ghostlock-binary
+          path: ghostlock-app/ghostlock
+          retention-days: 30
+
+      - name: Commit to repo
+        run: |
+          git config user.name "GitHub Actions"
+          git config user.email "actions@github.com"
+          git add app/src/main/assets/exploits/ghostlock
+          git diff --staged --quiet || git commit -m "Auto-build: GhostLock binary for non-Pixel devices"
+          git push
+        permissions:
+          contents: write
